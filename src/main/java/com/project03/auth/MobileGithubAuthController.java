@@ -1,4 +1,4 @@
-package com.example.auth;
+package com.project03.auth;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +26,7 @@ public class MobileGithubAuthController {
   @Value("${spring.security.oauth2.client.registration.github.client-secret}")
   String clientSecret;
 
-  record CodeDTO(String code, String redirectUri) {}
+  public record CodeDTO(String code, String redirectUri) {}
 
   private final WebClient ghAuth = WebClient.builder()
       .baseUrl("https://github.com")
@@ -44,14 +44,14 @@ public class MobileGithubAuthController {
       return ResponseEntity.badRequest().body("Missing code/redirectUri");
     }
 
-    // 1) Exchange authorization code → access_token
+    // 1) Exchange authorization code -> access_token
     Map<String, Object> tokenRes = ghAuth.post()
         .uri("/login/oauth/access_token")
         .bodyValue(Map.of(
-          "client_id", clientId,
-          "client_secret", clientSecret,
-          "code", dto.code(),
-          "redirect_uri", dto.redirectUri()))
+            "client_id", clientId,
+            "client_secret", clientSecret,
+            "code", dto.code(),
+            "redirect_uri", dto.redirectUri()))
         .retrieve()
         .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
         .block();
@@ -61,7 +61,7 @@ public class MobileGithubAuthController {
       return ResponseEntity.status(400).body("No access_token from GitHub");
     }
 
-    // 2) Fetch GitHub user
+    // 2) Get GitHub user
     Map<String, Object> ghUser = ghApi.get()
         .uri("/user")
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -73,12 +73,12 @@ public class MobileGithubAuthController {
       return ResponseEntity.status(400).body("Failed to load GitHub user");
     }
 
-    // 3) Create Authentication & HTTP session
+    // 3) Create Authentication & Session
     var principal = (String) ghUser.get("login");
     var auth = new UsernamePasswordAuthenticationToken(
         principal, "N/A", List.of(new SimpleGrantedAuthority("ROLE_USER")));
     SecurityContextHolder.getContext().setAuthentication(auth);
-    req.getSession(true); // ensures Set-Cookie on response
+    req.getSession(true); // ensure Set-Cookie
 
     return ResponseEntity.ok(Map.of("ok", true, "login", principal));
   }

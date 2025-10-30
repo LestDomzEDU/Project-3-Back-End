@@ -1,4 +1,4 @@
-package com.example.security;
+package com.project03.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,14 +16,13 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain security(HttpSecurity http) throws Exception {
     http
-      .csrf(csrf -> csrf.disable()) // okay for local JSON POST; add proper CSRF later
+      .csrf(csrf -> csrf.disable()) // OK for local JSON POST
       .authorizeHttpRequests(auth -> auth
         .requestMatchers(HttpMethod.POST, "/api/mobile/github/callback").permitAll()
         .requestMatchers("/api/me").authenticated()
         .anyRequest().permitAll()
       )
       .oauth2Login(Customizer.withDefaults())
-      .logout(l -> l.logoutUrl("/logout").logoutSuccessUrl("/"))
       .cors(c -> c.configurationSource(corsConfigurationSource()));
     return http.build();
   }
