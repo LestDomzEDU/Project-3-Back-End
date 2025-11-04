@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>GradQuest – Signed in</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{--primary:#2563eb;--border:#e5e7eb;--muted:#6b7280}
+    *{box-sizing:border-box}
+    body{font:16px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Inter,system-ui,sans-serif;margin:0;background:#fafafa;color:#111}
+    .wrap{max-width:800px;margin:40px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.06);padding:24px}
+    h1{margin:0 0 8px;font-size:28px}
+    p{margin:0 0 18px;color:#222}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+    .btn{
+      display:inline-block;text-decoration:none;border:0;cursor:pointer;
+      background:var(--primary);color:#fff;padding:12px 18px;border-radius:12px;font-weight:700
+    }
+    .ghost{background:#fff;color:#111;border:1px solid var(--border)}
+    .kv{display:flex;justify-content:space-between;border-top:1px dashed var(--border);padding:10px 0}
+    .kv:first-of-type{border-top:0}
+    .key{color:var(--muted)}
+    code{background:#f6f8fa;border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 id="title">Welcome</h1>
+      <p id="subtitle" class="muted">Checking your session…</p>
+
+      <div id="info" style="margin-top:8px">
+        <div class="kv"><div class="key">Authenticated</div><div id="authed">—</div></div>
+        <div class="kv"><div class="key">Name</div><div id="name">—</div></div>
+        <div class="kv"><div class="key">Login</div><div id="login">—</div></div>
+        <div class="kv"><div class="key">Session</div><div id="session">—</div></div>
+      </div>
+
+      <div class="row">
+        <a id="returnBtn" class="btn" href="#">Return to App</a>
+        <button id="logoutBtn" class="btn ghost">Log out</button>
+      </div>
+
+      <p id="hint" class="muted" style="margin-top:14px;display:none">
+        Not signed in? Launch the app and tap <strong>Continue with GitHub</strong>, or visit the
+        GitHub authorize URL from your device.
+      </p>
+
+      <details style="margin-top:18px">
+        <summary class="muted">Details</summary>
+        <div style="margin-top:8px" id="details"></div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND = location.origin; // http://10.0.2.2:8080
+    const DEEP_SCHEME = "gradquest://oauth?session=";
+
+    function getCookie(name){
+      return document.cookie.split('; ').find(r => r.startsWith(name + '='))?.split('=')[1];
+    }
+
+    async function fetchSession(sessionId){
+      const u = BACKEND + "/api/mobile/github/session?session=" + encodeURIComponent(sessionId);
+      const r = await fetch(u, { credentials: "include" });
+      if(!r.ok) throw new Error("Session fetch failed: " + r.status);
+      return r.json();
+    }
+
+    async function init(){
+      const sess = getCookie("sessionId");
+      const $ = id => document.getElementById(id);
+
+      if(!sess){
+        $("title").textContent = "Welcome";
+        $("subtitle").textContent = "No active session found on this device.";
+        $("authed").textContent = "no";
+        $("name").textContent = "—";
+        $("login").textContent = "—";
+        $("session").textContent = "—";
+        $("returnBtn").setAttribute("href", "#");
+        $("returnBtn").classList.add("ghost");
+        $("hint").style.display = "block";
+        $("details").innerHTML =
+          "<div>Tip: after signing in, we set a cookie named <code>sessionId</code> here on the backend.</div>";
+        return;
+      }
+
+      try{
+        const data = await fetchSession(sess);
+        const authed = !!data?.authenticated;
+
+        $("title").textContent = authed ? "Logged in successfully" : "Welcome";
+        $("subtitle").textContent = authed
+          ? "You can return to the app or log out below."
+          : "Your session is not authenticated.";
+
+        $("authed").textContent = authed ? "yes" : "no";
+        $("name").textContent = data?.name ?? "—";
+        $("login").textContent = data?.login ?? "—";
+        $("session").textContent = sess.slice(0,8) + "…";
+
+        // Deep link back to the app
+        $("returnBtn").setAttribute("href", DEEP_SCHEME + encodeURIComponent(sess));
+
+        $("details").innerHTML =
+          "<div>Deep link: <code>" + DEEP_SCHEME + encodeURIComponent(sess) + "</code></div>" +
+          "<div>API: <code>" + BACKEND + "</code></div>";
+      }catch(e){
+        $("subtitle").textContent = "Failed to read session.";
+        $("details").innerHTML = "<div style='color:#b91c1c'>"+ e.message +"</div>";
+      }
+
+      // Logout
+      document.getElementById("logoutBtn").onclick = async () => {
+        try{
+          await fetch(BACKEND + "/api/logout", { method: "POST", credentials: "include" });
+          // Clear UI
+          document.cookie = "sessionId=; Max-Age=0; Path=/";
+          location.reload();
+        }catch(e){
+          alert("Logout failed: " + e.message);
+        }
+      };
+    }
+
+    init();
+  </script>
+</body>
+</html>

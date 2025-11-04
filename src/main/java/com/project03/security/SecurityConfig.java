@@ -6,7 +6,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.*;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
@@ -14,31 +15,32 @@ import java.util.List;
 public class SecurityConfig {
 
   @Bean
-  SecurityFilterChain security(HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http
-      .csrf(csrf -> csrf.disable()) // OK for local JSON POST
+      .csrf(csrf -> csrf.disable())
+      .cors(Customizer.withDefaults())
       .authorizeHttpRequests(auth -> auth
-        .requestMatchers(HttpMethod.POST, "/api/mobile/github/callback").permitAll()
-        .requestMatchers("/api/me").authenticated()
+        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        .requestMatchers("/api/mobile/github/callback", "/api/me", "/api/logout").permitAll()
         .anyRequest().permitAll()
       )
-      .oauth2Login(Customizer.withDefaults())
-      .cors(c -> c.configurationSource(corsConfigurationSource()));
+      .formLogin(form -> form.disable())
+      .httpBasic(basic -> basic.disable())
+      .logout(logout -> logout.disable());
     return http.build();
   }
 
   @Bean
-  CorsConfigurationSource corsConfigurationSource() {
-    var cfg = new CorsConfiguration();
+  public UrlBasedCorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration cfg = new CorsConfiguration();
     cfg.setAllowedOrigins(List.of(
-      "http://localhost:19000", // Expo dev UI
-      "http://localhost:19006", // Expo web
-      "http://10.0.2.2:19000"   // Android emulator → Expo dev
+      "http://localhost:19000","http://localhost:19006",
+      "http://10.0.2.2:19000","http://10.0.2.2:8080","http://localhost:8080"
     ));
     cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
     cfg.setAllowedHeaders(List.of("*"));
     cfg.setAllowCredentials(true);
-    var src = new UrlBasedCorsConfigurationSource();
+    UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
     src.registerCorsConfiguration("/**", cfg);
     return src;
   }
