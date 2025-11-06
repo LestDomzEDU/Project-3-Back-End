@@ -1,6 +1,14 @@
 package com.project03.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.project03.model.School;
+import com.project03.repository.SchoolRepository;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 /**
  * controller for school matching functionality that will be neeeded for the student intake form
@@ -10,6 +18,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/schools")
 public class SchoolController {
+
+    private final SchoolRepository repo;
+
+    public SchoolController(SchoolRepository repo) {
+        this.repo = repo;
+    }
 
     /**
      * getting top 5 schools matching student's saved preferences
@@ -45,11 +59,30 @@ public class SchoolController {
      */
 
     @PostMapping("/search")
-    public String searchSchools(@RequestBody String searchCriteria) {
-        // TODO: Parse search criteria
-        // TODO: Query schools database with filters
-        // TODO: Return matching schools
-        return "Search results";
+    public ResponseEntity<List<School>> searchSchools(@RequestBody Map<String, Object> searchCriteria) {
+        try {
+            String state = searchCriteria.containsKey("state") ? (String) searchCriteria.get("state") : null;
+            String schoolTypeStr = searchCriteria.containsKey("schoolType") ? (String) searchCriteria.get("schoolType") : null;
+            School.SchoolType schoolType = null;
+            if (schoolTypeStr != null) {
+                try {
+                    schoolType = School.SchoolType.valueOf(schoolTypeStr.toUpperCase());
+                } catch (IllegalArgumentException e) {}
+            }
+            String programType = searchCriteria.containsKey("programType") ? (String) searchCriteria.get("programType") : null;
+            BigDecimal maxBudget = null;
+            if (searchCriteria.containsKey("budget")) {
+                Object budgetObj = searchCriteria.get("budget");
+                if (budgetObj instanceof Number) {
+                    maxBudget = BigDecimal.valueOf(((Number) budgetObj).doubleValue());
+                }
+            }
+            
+            List<School> schools = repo.findMatchingSchools(state, schoolType, programType, maxBudget);
+            return ResponseEntity.ok(schools);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
@@ -59,9 +92,10 @@ public class SchoolController {
      */
 
     @GetMapping("/{schoolId}")
-    public String getSchoolById(@PathVariable Long schoolId) {
-        // TODO: Retrieve school details by ID
-        return "School details for ID: " + schoolId;
+    public ResponseEntity<School> getSchoolById(@PathVariable Long schoolId) {
+        return repo.findById(schoolId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**
@@ -71,18 +105,11 @@ public class SchoolController {
      */
 
     @GetMapping
-    public String getAllSchools(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
-        // TODO: Implement pagination
-        // TODO: Return all schools (may need admin authentication)
-        return "All schools";
+    public List<School> getAllSchools() {
+        return repo.findAll();
     }
 
     /**
-     * We talked about having an admin panel to manage schools and add them, we scrapped the idea but it is here incase
-     * we want to implement it later
      * 
      * endpoint: ability to add a new school/program to the database
      * 
@@ -90,11 +117,13 @@ public class SchoolController {
      */
 
     @PostMapping
-    public String createSchool(@RequestBody String schoolData) {
-        // TODO: Validate admin authentication
-        // TODO: Parse school data (name, type, state, programs, costs, etc.)
-        // TODO: Save school to database
-        return "School created";
+    public ResponseEntity<School> createSchool(@RequestBody School school) {
+        try {
+            School savedSchool = repo.save(school);
+            return ResponseEntity.ok(savedSchool);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
@@ -104,10 +133,30 @@ public class SchoolController {
      */
 
     @PutMapping("/{schoolId}")
-    public String updateSchool(@PathVariable Long schoolId, @RequestBody String schoolData) {
-        // TODO: Validate admin authentication
-        // TODO: Update school in database
-        return "School updated";
+    public ResponseEntity<School> updateSchool(@PathVariable Long schoolId, @RequestBody School schoolDetails) {
+        return repo.findById(schoolId)
+                .map(school -> {
+                    if (schoolDetails.getName() != null) school.setName(schoolDetails.getName());
+                    if (schoolDetails.getType() != null) school.setType(schoolDetails.getType());
+                    if (schoolDetails.getState() != null) school.setState(schoolDetails.getState());
+                    if (schoolDetails.getCity() != null) school.setCity(schoolDetails.getCity());
+                    if (schoolDetails.getProgramName() != null) school.setProgramName(schoolDetails.getProgramName());
+                    if (schoolDetails.getProgramType() != null) school.setProgramType(schoolDetails.getProgramType());
+                    if (schoolDetails.getAnnualTuition() != null) school.setAnnualTuition(schoolDetails.getAnnualTuition());
+                    if (schoolDetails.getTotalCost() != null) school.setTotalCost(schoolDetails.getTotalCost());
+                    if (schoolDetails.getApplicationDeadline() != null) school.setApplicationDeadline(schoolDetails.getApplicationDeadline());
+                    if (schoolDetails.getApplicationFee() != null) school.setApplicationFee(schoolDetails.getApplicationFee());
+                    if (schoolDetails.getDescription() != null) school.setDescription(schoolDetails.getDescription());
+                    if (schoolDetails.getWebsiteUrl() != null) school.setWebsiteUrl(schoolDetails.getWebsiteUrl());
+                    if (schoolDetails.getRanking() != null) school.setRanking(schoolDetails.getRanking());
+                    if (schoolDetails.getAccreditation() != null) school.setAccreditation(schoolDetails.getAccreditation());
+                    if (schoolDetails.getEnrollmentType() != null) school.setEnrollmentType(schoolDetails.getEnrollmentType());
+                    if (schoolDetails.getModality() != null) school.setModality(schoolDetails.getModality());
+                    if (schoolDetails.getRequirementType() != null) school.setRequirementType(schoolDetails.getRequirementType());
+                    School updatedSchool = repo.save(school);
+                    return ResponseEntity.ok(updatedSchool);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /**
@@ -117,10 +166,14 @@ public class SchoolController {
      */
 
     @DeleteMapping("/{schoolId}")
-    public String deleteSchool(@PathVariable Long schoolId) {
-        // TODO: Validate admin authentication
-        // TODO: Delete school from database
-        return "School deleted";
+    public ResponseEntity<Void> deleteSchool(@PathVariable Long schoolId) {
+        
+        if (repo.existsById(schoolId)) {
+            repo.deleteById(schoolId);
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
 

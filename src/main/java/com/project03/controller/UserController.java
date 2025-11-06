@@ -72,37 +72,6 @@ public class UserController {
     }
 
     /**
-     * Get a student ID for testing (returns first user or creates a default one)
-     * 
-     * GET /api/users/test/student-id
-     */
-    @GetMapping("/test/student-id")
-    public ResponseEntity<Map<String, Object>> getTestStudentId() {
-        List<User> users = userRepository.findAll();
-        
-        if (users.isEmpty()) {
-            // Create a default test user
-            User defaultUser = new User("test@example.com", "Default Test User");
-            defaultUser = userRepository.save(defaultUser);
-            
-            return ResponseEntity.ok(Map.of(
-                "studentId", String.valueOf(defaultUser.getId()),
-                "userId", defaultUser.getId(),
-                "email", defaultUser.getEmail(),
-                "message", "Default test user created"
-            ));
-        }
-
-        User firstUser = users.get(0);
-        return ResponseEntity.ok(Map.of(
-            "studentId", String.valueOf(firstUser.getId()),
-            "userId", firstUser.getId(),
-            "email", firstUser.getEmail(),
-            "message", "Using first available user"
-        ));
-    }
-
-    /**
      * Get student ID by user ID
      * 
      * GET /api/users/{userId}/student-id
@@ -113,30 +82,6 @@ public class UserController {
         
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
-        }
-
-        User user = userOpt.get();
-        return ResponseEntity.ok(Map.of(
-            "studentId", String.valueOf(user.getId()),
-            "userId", user.getId(),
-            "email", user.getEmail(),
-            "name", user.getName() != null ? user.getName() : ""
-        ));
-    }
-
-    /**
-     * Get student ID by email
-     * 
-     * GET /api/users/email/{email}/student-id
-     */
-    @GetMapping("/email/{email}/student-id")
-    public ResponseEntity<Map<String, Object>> getStudentIdByEmail(@PathVariable String email) {
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        
-        if (userOpt.isEmpty()) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "User not found with email: " + email);
-            return ResponseEntity.status(404).body(errorResponse);
         }
 
         User user = userOpt.get();
