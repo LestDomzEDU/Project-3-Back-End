@@ -6,6 +6,9 @@ import org.springframework.http.ResponseEntity;
 import com.project03.model.StudentPreference;
 import com.project03.repository.StudentPreferenceRepository;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * This will handle saving and retrieving student preferences/criteria that will need to be filled out
  * by tthe student during the intake form process after logining in with OAuth or going to the profile page
@@ -42,7 +45,7 @@ public class StudentPreferenceController {
      */
 
     @PostMapping
-    public ResponseEntity<StudentPreference> savePreferences(@RequestParam String studentId, @RequestBody StudentPreference preferenceDetails) {
+    public ResponseEntity<?> savePreferences(@RequestParam String studentId, @RequestBody StudentPreference preferenceDetails) {
         try {
             StudentPreference preference = repo.findByStudentId(studentId)
                     .map(existing -> {
@@ -70,7 +73,13 @@ public class StudentPreferenceController {
             StudentPreference savedPreference = repo.save(preference);
             return ResponseEntity.ok(savedPreference);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to save preferences");
+            errorResponse.put("message", e.getMessage());
+            if (e.getCause() != null) {
+                errorResponse.put("cause", e.getCause().getMessage());
+            }
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 

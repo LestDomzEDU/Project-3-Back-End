@@ -6,9 +6,10 @@ import org.springframework.web.bind.annotation.*;
 import com.project03.model.School;
 import com.project03.repository.SchoolRepository;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * controller for school matching functionality that will be neeeded for the student intake form
@@ -116,15 +117,21 @@ public class SchoolController {
      * POST /api/schools
      */
 
-    @PostMapping
-    public ResponseEntity<School> createSchool(@RequestBody School school) {
-        try {
-            School savedSchool = repo.save(school);
-            return ResponseEntity.ok(savedSchool);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
+     @PostMapping
+     public ResponseEntity<?> createSchool(@RequestBody School school) {
+         try {
+             School savedSchool = repo.save(school);
+             return ResponseEntity.ok(savedSchool);
+         } catch (Exception e) {
+             Map<String, String> errorResponse = new HashMap<>();
+             errorResponse.put("error", "Failed to create school");
+             errorResponse.put("message", e.getMessage());
+             if (e.getCause() != null) {
+                 errorResponse.put("cause", e.getCause().getMessage());
+             }
+             return ResponseEntity.badRequest().body(errorResponse);
+         }
+     }
 
     /**
      * another admin endpoiint that can change the information of a school
