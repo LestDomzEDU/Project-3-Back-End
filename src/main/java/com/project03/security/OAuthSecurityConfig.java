@@ -22,15 +22,13 @@ public class OAuthSecurityConfig {
       .cors(Customizer.withDefaults())
       .csrf(csrf -> csrf.disable())
       .authorizeHttpRequests(auth -> auth
-          .requestMatchers("/", "/h2/**", "/oauth2/final").permitAll()
+          .requestMatchers("/", "/h2/**", "/oauth2/final", "/oauth/debug").permitAll()
           .requestMatchers("/oauth2/**", "/login/**").permitAll()
           .anyRequest().authenticated()
       )
       .headers(h -> h.frameOptions(f -> f.sameOrigin()))
       .oauth2Login(oauth -> oauth
-          .authorizationEndpoint(ae -> ae
-              .baseUri("/oauth2/authorization")
-          )
+          .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorization"))
           .defaultSuccessUrl("/oauth2/final", true)
           .failureUrl("/?login=failed")
       )
@@ -40,18 +38,15 @@ public class OAuthSecurityConfig {
           .clearAuthentication(true)
           .deleteCookies("JSESSIONID")
       );
-
     return http.build();
   }
 
-  /**
-   * CORS: default allows same-origin; also allow your Heroku origin explicitly.
-   * This is conservative & credential-friendly.
-   */
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOrigins(List.of("https://grad-quest-app-2cac63f2b9b2.herokuapp.com"));
+    config.setAllowedOrigins(List.of(
+        "https://grad-quest-app-2cac63f2b9b2.herokuapp.com"
+    ));
     config.setAllowCredentials(true);
     config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
     config.setAllowedHeaders(List.of("Authorization","Cache-Control","Content-Type","X-Requested-With"));

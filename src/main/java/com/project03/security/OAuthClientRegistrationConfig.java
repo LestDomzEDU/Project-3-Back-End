@@ -12,21 +12,19 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 @Configuration
 public class OAuthClientRegistrationConfig {
 
-  // Heroku public base URL (used to build exact redirect URIs)
+  // IMPORTANT: default to your Heroku URL in prod; you can override locally.
   @Value("${OAUTH_REDIRECT_BASE:https://grad-quest-app-2cac63f2b9b2.herokuapp.com}")
   private String redirectBase;
 
-  // GitHub app credentials (set these in Heroku config vars)
+  // GitHub OAuth
   @Value("${GITHUB_CLIENT_ID:}")
   private String githubClientId;
-
   @Value("${GITHUB_CLIENT_SECRET:}")
   private String githubClientSecret;
 
-  // Google app credentials (set these in Heroku config vars)
+  // Google OAuth
   @Value("${GOOGLE_CLIENT_ID:}")
   private String googleClientId;
-
   @Value("${GOOGLE_CLIENT_SECRET:}")
   private String googleClientSecret;
 
