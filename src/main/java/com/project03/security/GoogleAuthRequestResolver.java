@@ -5,13 +5,15 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Minimal resolver that preserves our "fresh=1" flag for Google by setting prompt=consent.
- * (We store return_to in a cookie using ReturnToCookieFilter, not here.)
+ * Minimal resolver that:
+ *  - preserves "fresh=1" by mapping it to prompt=consent for Google
+ *  - otherwise delegates to the default resolver
  */
 public class GoogleAuthRequestResolver implements OAuth2AuthorizationRequestResolver {
 
@@ -36,11 +38,25 @@ public class GoogleAuthRequestResolver implements OAuth2AuthorizationRequestReso
   private OAuth2AuthorizationRequest mutate(HttpServletRequest request, OAuth2AuthorizationRequest req) {
     if (req == null) return null;
 
+    // Determine the registration id ("google", "github", etc.)
+    String regId = null;
+    Object attr = req.getAttribute(OAuth2ParameterNames.REGISTRATION_ID);
+    if (attr != null) regId = String.valueOf(attr);
+
+    // Fallback: parse from URI .../oauth2/authorization/{registrationId}
+    if (regId == null) {
+      String uri = request.getRequestURI();
+      if (uri != null) {
+        int idx = uri.lastIndexOf('/');
+        if (idx >= 0 && idx + 1 < uri.length()) regId = uri.substring(idx + 1);
+      }
+    }
+
     Map<String, Object> addl = new LinkedHashMap<>(req.getAdditionalParameters());
 
-    // If caller passed fresh=1 and provider is google, force the account chooser
+    // If caller asked for a "fresh" Google login, force the account chooser
     String fresh = request.getParameter("fresh");
-    if ("google".equalsIgnoreCase(req.getClientRegistrationId()) && "1".equals(fresh)) {
+    if ("google".equalsIgnoreCase(regId) && "1".equals(fresh)) {
       addl.put("prompt", "consent");
     }
 
