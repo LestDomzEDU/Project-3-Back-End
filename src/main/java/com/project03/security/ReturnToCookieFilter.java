@@ -15,6 +15,7 @@ public class ReturnToCookieFilter implements Filter {
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
+
     HttpServletRequest req = (HttpServletRequest) request;
     HttpServletResponse res = (HttpServletResponse) response;
 
@@ -27,7 +28,7 @@ public class ReturnToCookieFilter implements Filter {
         c.setHttpOnly(true);
         c.setSecure(true);
         c.setPath("/");
-        c.setMaxAge(180);
+        c.setMaxAge(180); // 3 minutes
         res.addCookie(c);
       }
     }

@@ -16,11 +16,9 @@ import java.util.List;
 public class OAuthSecurityConfig {
 
   @Bean
-  public SecurityFilterChain filterChain(
-      HttpSecurity http,
-      ClientRegistrationRepository repo,
-      OAuthSuccessHandler successHandler) throws Exception {
-
+  public SecurityFilterChain filterChain(HttpSecurity http,
+                                         ClientRegistrationRepository repo,
+                                         OAuthSuccessHandler successHandler) throws Exception {
     http
       .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**", "/h2/**"))
       .headers(h -> h.frameOptions(f -> f.sameOrigin()))
@@ -30,14 +28,10 @@ public class OAuthSecurityConfig {
         .anyRequest().authenticated()
       )
       .oauth2Login(oauth -> oauth
-        .authorizationEndpoint(a -> a
-          .baseUri("/oauth2/authorization")
-          .authorizationRequestResolver(new GoogleAuthRequestResolver(repo, "/oauth2/authorization"))
-        )
-        .successHandler(successHandler)   // <-- use our robust redirect
+        .authorizationEndpoint(a -> a.baseUri("/oauth2/authorization"))
+        .successHandler(successHandler)      // ← always go to /oauth2/final
         .failureUrl("/")
       );
-
     return http.build();
   }
 

@@ -8,6 +8,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 @Component
@@ -24,24 +25,19 @@ public class OAuthSuccessHandler implements AuthenticationSuccessHandler {
   }
 
   @Override
-  public void onAuthenticationSuccess(
-      HttpServletRequest request,
-      HttpServletResponse response,
-      Authentication authentication) {
-
+  public void onAuthenticationSuccess(HttpServletRequest request,
+                                      HttpServletResponse response,
+                                      Authentication authentication) {
     String returnTo = request.getParameter("return_to");
     if (returnTo == null || returnTo.isBlank()) {
       returnTo = cookie(request, "oauth_return_to");
     }
-
     String target = (returnTo == null || returnTo.isBlank())
         ? "/oauth2/final"
-        : "/oauth2/final?return_to=" + java.net.URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
+        : "/oauth2/final?return_to=" + URLEncoder.encode(returnTo, StandardCharsets.UTF_8);
 
-    try {
-      response.sendRedirect(target);
-    } catch (Exception e) {
-      // Last-resort fallback
+    try { response.sendRedirect(target); }
+    catch (Exception e) {
       try { response.sendRedirect("/oauth2/final"); } catch (Exception ignored) {}
     }
   }

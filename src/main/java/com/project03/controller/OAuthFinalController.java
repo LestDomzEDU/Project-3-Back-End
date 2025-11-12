@@ -30,21 +30,18 @@ public class OAuthFinalController {
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String finalPage(HttpServletRequest request, Authentication authentication) {
+    // Build a tiny profile payload; tolerate missing auth.
     String name = "", login = "", email = "", avatar = "";
 
     if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
       Map<String, Object> a = o.getAttributes();
-
-      // GitHub (login/name/avatar_url) + common email
       if (a.containsKey("login")) login = String.valueOf(a.get("login"));
       if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
       if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
       if (a.containsKey("email")) email = String.valueOf(a.get("email"));
-
-      // Google OIDC (picture, given_name/family_name)
       if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
-      if ((name == null || name.isEmpty())
-          && (a.containsKey("given_name") || a.containsKey("family_name"))) {
+      if ((name == null || name.isEmpty()) &&
+          (a.containsKey("given_name") || a.containsKey("family_name"))) {
         String gn = String.valueOf(a.getOrDefault("given_name",""));
         String fn = String.valueOf(a.getOrDefault("family_name",""));
         name = (gn + " " + fn).trim();
@@ -62,7 +59,6 @@ public class OAuthFinalController {
         "\"avatar_url\":" + q(avatar) + "}");
     String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
 
-    // Deep link target from query or cookie
     String returnTo = request.getParameter("return_to");
     if (returnTo == null || returnTo.isBlank()) {
       returnTo = cookie(request, "oauth_return_to");
@@ -72,13 +68,11 @@ public class OAuthFinalController {
     if (returnTo != null && !returnTo.isBlank()) {
       String safe = returnTo.replace("\"", "");
       deepLinkScript = """
-        (function(){
-          try { window.location.replace("%s#userinfo=%s"); } catch(e){}
-        })();
+        (function(){ try { window.location.replace("%s#userinfo=%s"); } catch(e){} })();
       """.formatted(safe, encoded);
     }
 
-    // Render success page as fallback (also writes hash for WebView flows)
+    // Always render success page (works in a regular browser AND WebView).
     return """
       <!doctype html>
       <html>
@@ -93,7 +87,6 @@ public class OAuthFinalController {
             .name{font-size:18px;font-weight:700;margin:2px 0}
             .sub{color:#374151}
             .muted{color:#6b7280;font-size:12px;margin-top:8px}
-            button{margin-top:14px}
           </style>
         </head>
         <body>
@@ -105,8 +98,7 @@ public class OAuthFinalController {
                 <div class="sub" id="login"></div>
               </div>
             </div>
-            <button onclick="history.back()">Close</button>
-            <div class="muted">If this tab doesn't close automatically, switch back to the app.</div>
+            <div class="muted">You can return to the app now.</div>
           </div>
           <script>
             %s
@@ -118,7 +110,7 @@ public class OAuthFinalController {
               if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
                 location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
               }
-              setTimeout(function(){ try{ window.close(); }catch(_){} }, 150);
+              setTimeout(function(){ try{ window.close(); }catch(_){} }, 200);
             })();
           </script>
         </body>
