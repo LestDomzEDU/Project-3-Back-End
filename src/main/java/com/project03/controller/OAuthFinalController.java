@@ -30,16 +30,19 @@ public class OAuthFinalController {
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String finalPage(HttpServletRequest request, Authentication authentication) {
-    // ---- Build compact user payload
+    // Build compact user payload
     String name = "", login = "", email = "", avatar = "";
+
     if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
       Map<String, Object> a = o.getAttributes();
-      if (a.containsKey("login")) login = String.valueOf(a.get("login"));        // GitHub
+
+      // GitHub attributes
+      if (a.containsKey("login")) login = String.valueOf(a.get("login"));
       if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
       if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
-      if (a.containsKey("email")) email = String.valueOf(a.get("email"));        // common
 
-      // Google fields
+      // Common / Google OIDC attributes
+      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
       if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
       if ((name == null || name.isEmpty())
           && (a.containsKey("given_name") || a.containsKey("family_name"))) {
@@ -60,7 +63,7 @@ public class OAuthFinalController {
         "\"avatar_url\":" + j(avatar) + "}");
     String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
 
-    // ---- Retrieve deep link: query param wins, else cookie set by resolver
+    // Read deep link set by ReturnToCookieFilter (query param wins)
     String returnTo = request.getParameter("return_to");
     if (returnTo == null || returnTo.isBlank()) {
       returnTo = cookie(request, "oauth_return_to");
@@ -76,7 +79,7 @@ public class OAuthFinalController {
       """.formatted(safe, encoded);
     }
 
-    // ---- Render fallback page, also writes #userinfo=... for WebView flows
+    // Render fallback success page (also writes #userinfo=... for WebView flows)
     return """
       <!doctype html>
       <html>
@@ -116,6 +119,7 @@ public class OAuthFinalController {
               if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
                 location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
               }
+              setTimeout(function(){ try{ window.close(); }catch(_){} }, 150);
             })();
           </script>
         </body>

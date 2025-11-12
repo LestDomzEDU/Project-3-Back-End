@@ -1,6 +1,5 @@
 package com.project03.security;
 
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -29,12 +28,7 @@ public class OAuthSecurityConfig {
       .oauth2Login(oauth -> oauth
         .authorizationEndpoint(a -> a
           .baseUri("/oauth2/authorization")
-          // inject HttpServletResponse into resolver to set cookie
-          .authorizationRequestResolver((request) ->
-              new GoogleAuthRequestResolver(repo, "/oauth2/authorization",
-                  (HttpServletResponse) request.getAttribute("jakarta.servlet.http.HttpServletResponse"))
-                .resolve(request)
-          )
+          .authorizationRequestResolver(new GoogleAuthRequestResolver(repo, "/oauth2/authorization"))
         )
         .defaultSuccessUrl("/oauth2/final", true)
         .failureUrl("/")
