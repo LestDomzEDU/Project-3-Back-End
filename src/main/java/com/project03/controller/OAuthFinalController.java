@@ -17,62 +17,82 @@ import java.util.Map;
 @Controller
 public class OAuthFinalController {
 
-  private static String cookie(HttpServletRequest req, String name) {
-    if (req.getCookies() == null) return null;
-    for (Cookie c : req.getCookies()) {
-      if (name.equals(c.getName())) {
-        return URLDecoder.decode(c.getValue(), StandardCharsets.UTF_8);
+  private static String readCookie(HttpServletRequest req, String name) {
+    try {
+      if (req.getCookies() == null) return null;
+      for (Cookie c : req.getCookies()) {
+        if (name.equals(c.getName())) {
+          return URLDecoder.decode(c.getValue(), StandardCharsets.UTF_8);
+        }
       }
-    }
+    } catch (Exception ignored) {}
     return null;
+  }
+
+  private static String j(String s) {
+    if (s == null) return "null";
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String finalPage(HttpServletRequest request, Authentication authentication) {
-    // Build a tiny profile payload; tolerate missing auth.
-    String name = "", login = "", email = "", avatar = "";
+    // Default/minimal payload; we will try to enhance from Authentication safely.
+    String name = "";
+    String login = "";
+    String email = "";
+    String avatar = "";
 
-    if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
-      Map<String, Object> a = o.getAttributes();
-      if (a.containsKey("login")) login = String.valueOf(a.get("login"));
-      if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
-      if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
-      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
-      if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
-      if ((name == null || name.isEmpty()) &&
-          (a.containsKey("given_name") || a.containsKey("family_name"))) {
-        String gn = String.valueOf(a.getOrDefault("given_name",""));
-        String fn = String.valueOf(a.getOrDefault("family_name",""));
-        name = (gn + " " + fn).trim();
+    try {
+      if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
+        Map<String, Object> a = o.getAttributes();
+
+        // GitHub fields
+        if (a.containsKey("login")) login = String.valueOf(a.get("login"));
+        if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
+        if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
+
+        // Common / Google OIDC
+        if (a.containsKey("email")) email = String.valueOf(a.get("email"));
+        if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
+        if ((name == null || name.isEmpty())
+            && (a.containsKey("given_name") || a.containsKey("family_name"))) {
+          String gn = String.valueOf(a.getOrDefault("given_name",""));
+          String fn = String.valueOf(a.getOrDefault("family_name",""));
+          name = (gn + " " + fn).trim();
+        }
+        if ((login == null || login.isEmpty()) && email != null) {
+          int at = email.indexOf('@');
+          if (at > 0) login = email.substring(0, at);
+        }
       }
-      if ((login == null || login.isEmpty()) && email != null) {
-        int at = email.indexOf('@');
-        if (at > 0) login = email.substring(0, at);
-      }
+    } catch (Exception ignored) {
+      // Do not fail this endpoint; just show a minimal success page.
     }
 
-    String json = ("{\"authenticated\":true," +
-        "\"name\":" + q(name) + "," +
-        "\"login\":" + q(login) + "," +
-        "\"email\":" + q(email) + "," +
-        "\"avatar_url\":" + q(avatar) + "}");
+    String json = "{\"authenticated\":true," +
+        "\"name\":" + j(name) + "," +
+        "\"login\":" + j(login) + "," +
+        "\"email\":" + j(email) + "," +
+        "\"avatar_url\":" + j(avatar) + "}";
+
     String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
 
+    // Prefer query param, else cookie set earlier by your filter during /oauth2/authorization/*
     String returnTo = request.getParameter("return_to");
     if (returnTo == null || returnTo.isBlank()) {
-      returnTo = cookie(request, "oauth_return_to");
+      returnTo = readCookie(request, "oauth_return_to");
     }
 
     String deepLinkScript = "";
-    if (returnTo != null && !returnTo.isBlank()) {
-      String safe = returnTo.replace("\"", "");
-      deepLinkScript = """
-        (function(){ try { window.location.replace("%s#userinfo=%s"); } catch(e){} })();
-      """.formatted(safe, encoded);
-    }
+    try {
+      if (returnTo != null && !returnTo.isBlank()) {
+        String safe = returnTo.replace("\"", "");
+        deepLinkScript = "(function(){try{window.location.replace(\"" + safe + "#userinfo=" + encoded + "\");}catch(e){}})();";
+      }
+    } catch (Exception ignored) {}
 
-    // Always render success page (works in a regular browser AND WebView).
+    // Always return a success page; never throw from here.
     return """
       <!doctype html>
       <html>
@@ -103,23 +123,20 @@ public class OAuthFinalController {
           <script>
             %s
             (function(){
-              var me = %s;
-              if (me && me.avatar_url) document.getElementById('avatar').src = me.avatar_url;
-              document.getElementById('name').innerText = me.name || me.login || 'Signed In';
-              document.getElementById('login').innerText = me.login || me.email || '';
-              if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
-                location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
-              }
-              setTimeout(function(){ try{ window.close(); }catch(_){} }, 200);
+              try{
+                var me = %s;
+                if (me && me.avatar_url) document.getElementById('avatar').src = me.avatar_url;
+                document.getElementById('name').innerText = me.name || me.login || 'Signed In';
+                document.getElementById('login').innerText = me.login || me.email || '';
+                if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
+                  location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
+                }
+                setTimeout(function(){ try{ window.close(); }catch(_){} }, 200);
+              }catch(e){}
             })();
           </script>
         </body>
       </html>
       """.formatted(deepLinkScript, json);
-  }
-
-  private static String q(String s) {
-    if (s == null) return "null";
-    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }
