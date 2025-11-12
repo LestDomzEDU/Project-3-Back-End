@@ -30,19 +30,18 @@ public class OAuthFinalController {
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String finalPage(HttpServletRequest request, Authentication authentication) {
-    // Build compact user payload
     String name = "", login = "", email = "", avatar = "";
 
     if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
       Map<String, Object> a = o.getAttributes();
 
-      // GitHub attributes
+      // GitHub (login/name/avatar_url) + common email
       if (a.containsKey("login")) login = String.valueOf(a.get("login"));
       if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
       if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
-
-      // Common / Google OIDC attributes
       if (a.containsKey("email")) email = String.valueOf(a.get("email"));
+
+      // Google OIDC (picture, given_name/family_name)
       if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
       if ((name == null || name.isEmpty())
           && (a.containsKey("given_name") || a.containsKey("family_name"))) {
@@ -57,13 +56,13 @@ public class OAuthFinalController {
     }
 
     String json = ("{\"authenticated\":true," +
-        "\"name\":" + j(name) + "," +
-        "\"login\":" + j(login) + "," +
-        "\"email\":" + j(email) + "," +
-        "\"avatar_url\":" + j(avatar) + "}");
+        "\"name\":" + q(name) + "," +
+        "\"login\":" + q(login) + "," +
+        "\"email\":" + q(email) + "," +
+        "\"avatar_url\":" + q(avatar) + "}");
     String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
 
-    // Read deep link set by ReturnToCookieFilter (query param wins)
+    // Deep link target from query or cookie
     String returnTo = request.getParameter("return_to");
     if (returnTo == null || returnTo.isBlank()) {
       returnTo = cookie(request, "oauth_return_to");
@@ -79,7 +78,7 @@ public class OAuthFinalController {
       """.formatted(safe, encoded);
     }
 
-    // Render fallback success page (also writes #userinfo=... for WebView flows)
+    // Render success page as fallback (also writes hash for WebView flows)
     return """
       <!doctype html>
       <html>
@@ -127,7 +126,7 @@ public class OAuthFinalController {
       """.formatted(deepLinkScript, json);
   }
 
-  private static String j(String s) {
+  private static String q(String s) {
     if (s == null) return "null";
     return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
