@@ -1,92 +1,125 @@
 package com.project03.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
-@RestController
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+@Controller
 public class OAuthFinalController {
 
-  @GetMapping("/oauth2/final")
-  public String closeTab() {
-    // This page:
-    // 1) fetches /api/me with cookies
-    // 2) shows a minimal "Signed in" UI (avatar + name)
-    // 3) stores the user JSON in the URL hash so Expo's openAuthSessionAsync can read it
-    // 4) tries to close itself if it's in a WebView
+  @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
+  @ResponseBody
+  public String finalPage(HttpServletRequest request, Authentication authentication) {
+    // Build compact user payload
+    String name = "";
+    String login = "";
+    String email = "";
+    String avatar = "";
+
+    if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
+      Map<String, Object> a = o.getAttributes();
+      // GitHub attributes
+      if (a.containsKey("login")) login = String.valueOf(a.get("login"));
+      if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
+      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
+      if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
+
+      // Google OpenID attributes
+      if (a.containsKey("given_name") || a.containsKey("family_name")) {
+        if (name == null || name.isEmpty()) {
+          String gn = String.valueOf(a.getOrDefault("given_name", ""));
+          String fn = String.valueOf(a.getOrDefault("family_name", ""));
+          name = (gn + " " + fn).trim();
+        }
+      }
+      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
+      if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
+      if ((login == null || login.isEmpty()) && email != null) {
+        int at = email.indexOf('@');
+        if (at > 0) login = email.substring(0, at);
+      }
+    }
+
+    String json = ("{\"authenticated\":true," +
+        "\"name\":" + j(name) + "," +
+        "\"login\":" + j(login) + "," +
+        "\"email\":" + j(email) + "," +
+        "\"avatar_url\":" + j(avatar) + "}");
+    String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
+
+    // If the app passed a deep link, immediately bounce there with the payload in the hash.
+    // Example: return_to=myapp://oauth (or exp:// in dev)
+    String returnTo = request.getParameter("return_to");
+    String deepLinkScript = "";
+    if (returnTo != null && !returnTo.isBlank()) {
+      String safe = returnTo.replace("\"", "");
+      deepLinkScript = """
+        (function(){
+          try {
+            var u = "%s#userinfo=%s";
+            window.location.replace(u);
+          } catch(e) {}
+        })();
+      """.formatted(safe, encoded);
+    }
+
+    // Render a visible success page (also sets the hash for WebView fallback)
     return """
+      <!doctype html>
       <html>
         <head>
           <meta name="viewport" content="width=device-width,initial-scale=1"/>
           <title>Signed in</title>
           <style>
-            body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-            .card { max-width: 460px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; }
-            .row { display:flex; gap:16px; align-items:center; }
-            .avatar { width:64px; height:64px; border-radius:50%; background:#eee; object-fit:cover; }
-            .name { font-size: 18px; font-weight: 700; margin: 2px 0; }
-            .sub { color:#374151; }
-            .ok { margin-top:16px; }
-            .muted { color:#6b7280; font-size: 12px; margin-top: 8px; }
+            body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;}
+            .card{max-width:460px;margin:0 auto;padding:20px;border:1px solid #e5e7eb;border-radius:12px}
+            .row{display:flex;gap:16px;align-items:center}
+            .avatar{width:64px;height:64px;border-radius:50%;background:#eee;object-fit:cover}
+            .name{font-size:18px;font-weight:700;margin:2px 0}
+            .sub{color:#374151}
+            .muted{color:#6b7280;font-size:12px;margin-top:8px}
+            button{margin-top:14px}
           </style>
         </head>
         <body>
           <div class="card">
-            <div id="loading">Signing you in…</div>
-            <div id="signed" style="display:none">
-              <div class="row">
-                <img id="avatar" class="avatar" src="" alt="avatar"/>
-                <div>
-                  <div class="name" id="name"></div>
-                  <div class="sub" id="login"></div>
-                </div>
+            <div class="row">
+              <img id="avatar" class="avatar" alt="avatar"/>
+              <div>
+                <div class="name" id="name"></div>
+                <div class="sub" id="login"></div>
               </div>
-              <div class="ok">
-                <button onclick="tryClose()">Close</button>
-              </div>
-              <div class="muted">You can safely close this tab.</div>
             </div>
+            <button onclick="history.back()">Close</button>
+            <div class="muted">If this tab doesn't close automatically, you can switch back to the app.</div>
           </div>
-
           <script>
-            async function run() {
-              try {
-                const res = await fetch('/api/me', { credentials: 'include' });
-                const me = await res.json();
-
-                if (!me || !me.authenticated) {
-                  document.getElementById('loading').innerText = 'Signed in, but no session found.';
-                  return;
-                }
-
-                // Populate UI
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('signed').style.display = 'block';
-                document.getElementById('name').innerText = me.name || me.login || 'Signed In';
-                document.getElementById('login').innerText = me.login || me.email || '';
-                if (me.avatar_url) document.getElementById('avatar').src = me.avatar_url;
-
-                // Put a compact payload in the URL hash so Expo can read it
-                const payload = { name: me.name, login: me.login, email: me.email, avatar_url: me.avatar_url, authenticated: true };
-                const enc = encodeURIComponent(JSON.stringify(payload));
-                if (!location.hash || !location.hash.startsWith('#userinfo=')) {
-                  history.replaceState(null, '', location.pathname + '#userinfo=' + enc);
-                }
-
-                // If we're in a WebView, try to close; otherwise the user can tap Close
-                setTimeout(tryClose, 150);
-              } catch (e) {
-                document.getElementById('loading').innerText = 'Something went wrong.';
+            %s
+            (function(){
+              var me = %s;
+              if (me && me.avatar_url) document.getElementById('avatar').src = me.avatar_url;
+              document.getElementById('name').innerText = me.name || me.login || 'Signed In';
+              document.getElementById('login').innerText = me.login || me.email || '';
+              if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
+                location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
               }
-            }
-
-            function tryClose() {
-              try { window.close(); } catch(_) {}
-            }
-
-            run();
+            })();
           </script>
         </body>
       </html>
-      """;
+      """.formatted(deepLinkScript, json);
+  }
+
+  private static String j(String s) {
+    if (s == null) return "null";
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }
