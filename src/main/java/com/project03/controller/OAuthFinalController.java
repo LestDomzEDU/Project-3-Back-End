@@ -1,5 +1,6 @@
 package com.project03.controller;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -15,33 +17,36 @@ import java.util.Map;
 @Controller
 public class OAuthFinalController {
 
+  private static String cookie(HttpServletRequest req, String name) {
+    if (req.getCookies() == null) return null;
+    for (Cookie c : req.getCookies()) {
+      if (name.equals(c.getName())) {
+        return URLDecoder.decode(c.getValue(), StandardCharsets.UTF_8);
+      }
+    }
+    return null;
+  }
+
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
   @ResponseBody
   public String finalPage(HttpServletRequest request, Authentication authentication) {
-    // Build compact user payload
-    String name = "";
-    String login = "";
-    String email = "";
-    String avatar = "";
-
+    // ---- Build compact user payload
+    String name = "", login = "", email = "", avatar = "";
     if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
       Map<String, Object> a = o.getAttributes();
-      // GitHub attributes
-      if (a.containsKey("login")) login = String.valueOf(a.get("login"));
+      if (a.containsKey("login")) login = String.valueOf(a.get("login"));        // GitHub
       if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
-      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
       if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
+      if (a.containsKey("email")) email = String.valueOf(a.get("email"));        // common
 
-      // Google OpenID attributes
-      if (a.containsKey("given_name") || a.containsKey("family_name")) {
-        if (name == null || name.isEmpty()) {
-          String gn = String.valueOf(a.getOrDefault("given_name", ""));
-          String fn = String.valueOf(a.getOrDefault("family_name", ""));
-          name = (gn + " " + fn).trim();
-        }
-      }
-      if (a.containsKey("email")) email = String.valueOf(a.get("email"));
+      // Google fields
       if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
+      if ((name == null || name.isEmpty())
+          && (a.containsKey("given_name") || a.containsKey("family_name"))) {
+        String gn = String.valueOf(a.getOrDefault("given_name",""));
+        String fn = String.valueOf(a.getOrDefault("family_name",""));
+        name = (gn + " " + fn).trim();
+      }
       if ((login == null || login.isEmpty()) && email != null) {
         int at = email.indexOf('@');
         if (at > 0) login = email.substring(0, at);
@@ -55,23 +60,23 @@ public class OAuthFinalController {
         "\"avatar_url\":" + j(avatar) + "}");
     String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
 
-    // If the app passed a deep link, immediately bounce there with the payload in the hash.
-    // Example: return_to=myapp://oauth (or exp:// in dev)
+    // ---- Retrieve deep link: query param wins, else cookie set by resolver
     String returnTo = request.getParameter("return_to");
+    if (returnTo == null || returnTo.isBlank()) {
+      returnTo = cookie(request, "oauth_return_to");
+    }
+
     String deepLinkScript = "";
     if (returnTo != null && !returnTo.isBlank()) {
       String safe = returnTo.replace("\"", "");
       deepLinkScript = """
         (function(){
-          try {
-            var u = "%s#userinfo=%s";
-            window.location.replace(u);
-          } catch(e) {}
+          try { window.location.replace("%s#userinfo=%s"); } catch(e){}
         })();
       """.formatted(safe, encoded);
     }
 
-    // Render a visible success page (also sets the hash for WebView fallback)
+    // ---- Render fallback page, also writes #userinfo=... for WebView flows
     return """
       <!doctype html>
       <html>
@@ -99,7 +104,7 @@ public class OAuthFinalController {
               </div>
             </div>
             <button onclick="history.back()">Close</button>
-            <div class="muted">If this tab doesn't close automatically, you can switch back to the app.</div>
+            <div class="muted">If this tab doesn't close automatically, switch back to the app.</div>
           </div>
           <script>
             %s
