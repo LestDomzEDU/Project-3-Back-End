@@ -12,17 +12,17 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 @Configuration
 public class OAuthClientRegistrationConfig {
 
-  // IMPORTANT: default to your Heroku URL in prod; you can override locally.
+  // IMPORTANT: default to your Heroku URL in prod; override locally if needed.
   @Value("${OAUTH_REDIRECT_BASE:https://grad-quest-app-2cac63f2b9b2.herokuapp.com}")
   private String redirectBase;
 
-  // GitHub OAuth
+  // GitHub
   @Value("${GITHUB_CLIENT_ID:}")
   private String githubClientId;
   @Value("${GITHUB_CLIENT_SECRET:}")
   private String githubClientSecret;
 
-  // Google OAuth
+  // Google
   @Value("${GOOGLE_CLIENT_ID:}")
   private String googleClientId;
   @Value("${GOOGLE_CLIENT_SECRET:}")
@@ -32,6 +32,7 @@ public class OAuthClientRegistrationConfig {
   public ClientRegistrationRepository clientRegistrationRepository() {
     ClientRegistration github = ClientRegistration
         .withRegistrationId("github")
+        .clientName("GitHub")
         .clientId(githubClientId)
         .clientSecret(githubClientSecret)
         .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
@@ -41,12 +42,12 @@ public class OAuthClientRegistrationConfig {
         .authorizationUri("https://github.com/login/oauth/authorize")
         .tokenUri("https://github.com/login/oauth/access_token")
         .userInfoUri("https://api.github.com/user")
-        .userNameAttributeName("id")
-        .clientName("GitHub")
+        .userNameAttributeName("login")
         .build();
 
     ClientRegistration google = ClientRegistration
         .withRegistrationId("google")
+        .clientName("Google")
         .clientId(googleClientId)
         .clientSecret(googleClientSecret)
         .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
@@ -58,7 +59,6 @@ public class OAuthClientRegistrationConfig {
         .jwkSetUri("https://www.googleapis.com/oauth2/v3/certs")
         .userInfoUri("https://openidconnect.googleapis.com/v1/userinfo")
         .userNameAttributeName("sub")
-        .clientName("Google")
         .build();
 
     return new InMemoryClientRegistrationRepository(github, google);

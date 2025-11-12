@@ -16,36 +16,33 @@ import java.util.List;
 public class OAuthSecurityConfig {
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                          ClientRegistrationRepository registrations) throws Exception {
+  public SecurityFilterChain filterChain(HttpSecurity http, ClientRegistrationRepository repo) throws Exception {
     http
+      .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**", "/h2/**")) // keep CSRF off for API/console
+      .headers(h -> h.frameOptions(f -> f.sameOrigin()))               // H2 console
       .cors(Customizer.withDefaults())
-      .csrf(csrf -> csrf.disable())
       .authorizeHttpRequests(auth -> auth
-          .requestMatchers("/", "/h2/**", "/oauth2/final", "/oauth/debug").permitAll()
-          .requestMatchers("/oauth2/**", "/login/**").permitAll()
-          .anyRequest().authenticated()
+        .requestMatchers("/", "/oauth2/**", "/api/me", "/api/logout", "/h2/**").permitAll()
+        .anyRequest().authenticated()
       )
-      .headers(h -> h.frameOptions(f -> f.sameOrigin()))
       .oauth2Login(oauth -> oauth
-          .authorizationEndpoint(ae -> ae.baseUri("/oauth2/authorization"))
-          .defaultSuccessUrl("/oauth2/final", true)
-          .failureUrl("/?login=failed")
-      )
-      .logout(logout -> logout
-          .logoutUrl("/api/logout")
-          .logoutSuccessUrl("/")
-          .clearAuthentication(true)
-          .deleteCookies("JSESSIONID")
+        .authorizationEndpoint(a -> a
+          .baseUri("/oauth2/authorization")
+          .authorizationRequestResolver(new GoogleAuthRequestResolver(repo, "/oauth2/authorization"))
+        )
+        .defaultSuccessUrl("/oauth2/final", true)
+        .failureUrl("/")
       );
+
     return http.build();
   }
 
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOrigins(List.of(
-        "https://grad-quest-app-2cac63f2b9b2.herokuapp.com"
+    // Support native apps (often null origin) and dev/web. Adjust as needed.
+    config.setAllowedOriginPatterns(List.of(
+        "*"
     ));
     config.setAllowCredentials(true);
     config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
