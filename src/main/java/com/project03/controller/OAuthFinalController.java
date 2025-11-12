@@ -3,24 +3,22 @@ package com.project03.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 @Controller
 public class OAuthFinalController {
 
   private static String readCookie(HttpServletRequest req, String name) {
     try {
-      if (req.getCookies() == null) return null;
-      for (Cookie c : req.getCookies()) {
+      Cookie[] cookies = req.getCookies();
+      if (cookies == null) return null;
+      for (Cookie c : cookies) {
         if (name.equals(c.getName())) {
           return URLDecoder.decode(c.getValue(), StandardCharsets.UTF_8);
         }
@@ -29,71 +27,33 @@ public class OAuthFinalController {
     return null;
   }
 
-  private static String j(String s) {
-    if (s == null) return "null";
-    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-  }
-
   @GetMapping(value = "/oauth2/final", produces = MediaType.TEXT_HTML_VALUE)
-  @ResponseBody
-  public String finalPage(HttpServletRequest request, Authentication authentication) {
-    // Default/minimal payload; we will try to enhance from Authentication safely.
-    String name = "";
-    String login = "";
-    String email = "";
-    String avatar = "";
-
+  public ResponseEntity<String> finalPage(HttpServletRequest request) {
+    // DO NOT touch Spring Security here; just render a page and (optionally) deep-link.
+    String payloadJson = "{\"authenticated\":true,\"name\":null,\"login\":null,\"email\":null,\"avatar_url\":null}";
+    String encoded;
     try {
-      if (authentication != null && authentication.getPrincipal() instanceof OAuth2User o) {
-        Map<String, Object> a = o.getAttributes();
-
-        // GitHub fields
-        if (a.containsKey("login")) login = String.valueOf(a.get("login"));
-        if (a.containsKey("name"))  name  = String.valueOf(a.get("name"));
-        if (a.containsKey("avatar_url")) avatar = String.valueOf(a.get("avatar_url"));
-
-        // Common / Google OIDC
-        if (a.containsKey("email")) email = String.valueOf(a.get("email"));
-        if (a.containsKey("picture")) avatar = String.valueOf(a.get("picture"));
-        if ((name == null || name.isEmpty())
-            && (a.containsKey("given_name") || a.containsKey("family_name"))) {
-          String gn = String.valueOf(a.getOrDefault("given_name",""));
-          String fn = String.valueOf(a.getOrDefault("family_name",""));
-          name = (gn + " " + fn).trim();
-        }
-        if ((login == null || login.isEmpty()) && email != null) {
-          int at = email.indexOf('@');
-          if (at > 0) login = email.substring(0, at);
-        }
-      }
-    } catch (Exception ignored) {
-      // Do not fail this endpoint; just show a minimal success page.
+      encoded = URLEncoder.encode(payloadJson, StandardCharsets.UTF_8);
+    } catch (Exception e) {
+      encoded = "%7B%22authenticated%22%3Atrue%7D";
     }
 
-    String json = "{\"authenticated\":true," +
-        "\"name\":" + j(name) + "," +
-        "\"login\":" + j(login) + "," +
-        "\"email\":" + j(email) + "," +
-        "\"avatar_url\":" + j(avatar) + "}";
-
-    String encoded = URLEncoder.encode(json, StandardCharsets.UTF_8);
-
-    // Prefer query param, else cookie set earlier by your filter during /oauth2/authorization/*
-    String returnTo = request.getParameter("return_to");
-    if (returnTo == null || returnTo.isBlank()) {
-      returnTo = readCookie(request, "oauth_return_to");
-    }
-
-    String deepLinkScript = "";
+    // Prefer ?return_to=..., else cookie from the /oauth2/authorization/* hop
+    String returnTo = null;
     try {
-      if (returnTo != null && !returnTo.isBlank()) {
-        String safe = returnTo.replace("\"", "");
-        deepLinkScript = "(function(){try{window.location.replace(\"" + safe + "#userinfo=" + encoded + "\");}catch(e){}})();";
-      }
+      String q = request.getParameter("return_to");
+      if (q != null && !q.isBlank()) returnTo = q;
+      if (returnTo == null) returnTo = readCookie(request, "oauth_return_to");
     } catch (Exception ignored) {}
 
-    // Always return a success page; never throw from here.
-    return """
+    String deepLinkScript = "";
+    if (returnTo != null && !returnTo.isBlank()) {
+      String safe = returnTo.replace("\"", "");
+      deepLinkScript =
+          "(function(){try{window.location.replace(\"" + safe + "#userinfo=" + encoded + "\");}catch(e){}})();";
+    }
+
+    String html = """
       <!doctype html>
       <html>
         <head>
@@ -112,22 +72,18 @@ public class OAuthFinalController {
         <body>
           <div class="card">
             <div class="row">
-              <img id="avatar" class="avatar" alt="avatar"/>
               <div>
-                <div class="name" id="name"></div>
-                <div class="sub" id="login"></div>
+                <div class="name">Signed in</div>
+                <div class="sub">Returning to the app…</div>
               </div>
             </div>
-            <div class="muted">You can return to the app now.</div>
+            <div class="muted">If nothing happens, switch back to the app.</div>
           </div>
           <script>
             %s
             (function(){
               try{
                 var me = %s;
-                if (me && me.avatar_url) document.getElementById('avatar').src = me.avatar_url;
-                document.getElementById('name').innerText = me.name || me.login || 'Signed In';
-                document.getElementById('login').innerText = me.login || me.email || '';
                 if (!location.hash || location.hash.indexOf('#userinfo=') !== 0) {
                   location.replace(location.pathname + '#userinfo=' + encodeURIComponent(JSON.stringify(me)));
                 }
@@ -137,6 +93,9 @@ public class OAuthFinalController {
           </script>
         </body>
       </html>
-      """.formatted(deepLinkScript, json);
+      """.replaceFirst("%s", deepLinkScript)
+         .replaceFirst("%s", payloadJson);
+
+    return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
   }
 }

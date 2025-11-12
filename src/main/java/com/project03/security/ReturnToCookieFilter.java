@@ -15,22 +15,25 @@ public class ReturnToCookieFilter implements Filter {
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
+    try {
+      HttpServletRequest req = (HttpServletRequest) request;
+      HttpServletResponse res = (HttpServletResponse) response;
 
-    HttpServletRequest req = (HttpServletRequest) request;
-    HttpServletResponse res = (HttpServletResponse) response;
-
-    if (req.getRequestURI() != null &&
-        req.getRequestURI().startsWith("/oauth2/authorization")) {
-      String returnTo = req.getParameter("return_to");
-      if (returnTo != null && !returnTo.isBlank()) {
-        Cookie c = new Cookie("oauth_return_to",
-            URLEncoder.encode(returnTo, StandardCharsets.UTF_8));
-        c.setHttpOnly(true);
-        c.setSecure(true);
-        c.setPath("/");
-        c.setMaxAge(180); // 3 minutes
-        res.addCookie(c);
+      String uri = req.getRequestURI();
+      if (uri != null && uri.startsWith("/oauth2/authorization")) {
+        String returnTo = req.getParameter("return_to");
+        if (returnTo != null && !returnTo.isBlank()) {
+          Cookie c = new Cookie("oauth_return_to",
+              URLEncoder.encode(returnTo, StandardCharsets.UTF_8));
+          c.setHttpOnly(true);
+          c.setSecure(true);
+          c.setPath("/");
+          c.setMaxAge(180);
+          res.addCookie(c);
+        }
       }
+    } catch (Exception ignored) {
+      // never block the request
     }
     chain.doFilter(request, response);
   }
