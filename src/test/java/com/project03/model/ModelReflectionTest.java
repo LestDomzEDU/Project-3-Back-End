@@ -17,21 +17,8 @@ import java.util.Date;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Reflection-based POJO coverage test.
- *
- * This test:
- *  - Instantiates each model class via no-arg ctor
- *  - Finds matching setter/getter pairs
- *  - Sets a type-appropriate dummy value
- *  - Reads it back and asserts equality (when sensible)
- *
- * It safely skips properties we can't set (no setter, unsupported type, etc.).
- * This provides broad line coverage for the model package without coupling to DB or controllers.
- */
 class ModelReflectionTest {
 
-    // List your model classes here (add more as you create them)
     private static final Class<?>[] MODEL_CLASSES = new Class<?>[] {
         com.project03.model.User.class,
         com.project03.model.School.class,
@@ -41,26 +28,21 @@ class ModelReflectionTest {
     };
 
     @Test
-    @DisplayName("All model getters/setters round-trip with dummy values")
-    void pojoRoundTrip() throws Exception {
+    @DisplayName("Model getters/setters round-trip + equals/hashCode/toString smoke")
+    void pojoRoundTripAndBasics() throws Exception {
         for (Class<?> clazz : MODEL_CLASSES) {
             Object instance = newInstance(clazz);
 
+            // getters/setters round-trip
             BeanInfo info = Introspector.getBeanInfo(clazz, Object.class);
             for (PropertyDescriptor pd : info.getPropertyDescriptors()) {
                 Method setter = pd.getWriteMethod();
                 Method getter = pd.getReadMethod();
-                if (setter == null || getter == null) {
-                    // either read-only/write-only or not a standard bean prop
-                    continue;
-                }
+                if (setter == null || getter == null) continue;
 
                 Class<?> propType = pd.getPropertyType();
                 Object value = dummyValue(propType);
-                if (value == Unsupported.INSTANCE) {
-                    // Can't set a safe dummy for this type; skip it
-                    continue;
-                }
+                if (value == Unsupported.INSTANCE) continue;
 
                 try {
                     setter.setAccessible(true);
@@ -69,22 +51,24 @@ class ModelReflectionTest {
                     getter.setAccessible(true);
                     Object read = getter.invoke(instance);
 
-                    // For enums and simple types we can assert equality directly.
-                    // For BigDecimal, use compareTo==0 because of scale.
                     if (propType == BigDecimal.class && read instanceof BigDecimal && value instanceof BigDecimal) {
                         assertThat(((BigDecimal) read).compareTo((BigDecimal) value)).isZero();
                     } else {
                         assertThat(read).isEqualTo(value);
                     }
-                } catch (ReflectiveOperationException | IllegalArgumentException ex) {
-                    // Some setters might enforce validation or convert types; that's fine.
-                    // We still invoked the methods, which increases coverage.
+                } catch (ReflectiveOperationException | IllegalArgumentException ignored) {
+                    // invoking still increases coverage
                 }
             }
+
+            // equals/hashCode/toString smoke (self-equality + non-null string)
+            assertThat(instance.equals(instance)).isTrue();
+            assertThat(instance.hashCode()).isNotNull();
+            assertThat(instance.toString()).isNotNull();
         }
     }
 
-    /* -------------------- helpers -------------------- */
+    /* ---------- helpers ---------- */
 
     private static Object newInstance(Class<?> clazz) throws Exception {
         try {
@@ -92,7 +76,6 @@ class ModelReflectionTest {
             ctor.setAccessible(true);
             return ctor.newInstance();
         } catch (NoSuchMethodException e) {
-            // Try to instantiate via the first available constructor with defaults
             for (Constructor<?> c : clazz.getDeclaredConstructors()) {
                 c.setAccessible(true);
                 Class<?>[] types = c.getParameterTypes();
@@ -121,14 +104,11 @@ class ModelReflectionTest {
         if (type == LocalDateTime.class) return LocalDateTime.of(2024, 1, 1, 0, 0);
         if (type == Date.class) return Date.from(Instant.parse("2024-01-01T00:00:00Z"));
 
-        // For Enums, use first constant
         if (type.isEnum()) {
             Object[] constants = type.getEnumConstants();
             if (constants != null && constants.length > 0) return constants[0];
             return Unsupported.INSTANCE;
         }
-
-        // For arrays, create length-1 array of a supported element type
         if (type.isArray()) {
             Class<?> comp = type.getComponentType();
             Object element = dummyValue(comp);
@@ -137,8 +117,6 @@ class ModelReflectionTest {
             Array.set(arr, 0, element);
             return arr;
         }
-
-        // For other classes (e.g., nested objects), try a no-arg ctor; otherwise skip
         try {
             Constructor<?> ctor = type.getDeclaredConstructor();
             ctor.setAccessible(true);
