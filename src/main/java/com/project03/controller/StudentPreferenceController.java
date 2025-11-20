@@ -55,17 +55,8 @@ public class StudentPreferenceController {
                     .orElseGet(() -> {
                         // Create new preferences
                         preferenceDetails.setUser(user);
-                        // Ensure studentId is set
-                        if (preferenceDetails.getStudentId() == null && user != null) {
-                            preferenceDetails.setStudentId(user.getId());
-                        }
                         return preferenceDetails;
                     });
-            
-            // Ensure studentId is set before saving (safety check)
-            if (preference.getStudentId() == null && user != null) {
-                preference.setStudentId(user.getId());
-            }
             
             StudentPreference savedPreference = repo.save(preference);
             return ResponseEntity.ok(savedPreference);
