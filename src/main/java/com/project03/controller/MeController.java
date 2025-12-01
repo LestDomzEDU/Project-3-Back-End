@@ -34,7 +34,7 @@ public class MeController {
     if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
       registrationId = oauthToken.getAuthorizedClientRegistrationId();
     }
-    
+
     // Fallback: detect provider from attributes if registrationId is not available
     if (registrationId == null || registrationId.isEmpty()) {
       registrationId = oauthUserService.detectProvider(oauth2User);
@@ -51,25 +51,51 @@ public class MeController {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("authenticated", true);
       out.put("error", "Failed to create/update user: " + e.getMessage());
-      
+
       // GitHub fields
       String ghLogin = (String) attrs.get("login");
       String ghAvatar = (String) attrs.get("avatar_url");
       String ghName = (String) attrs.get("name");
-      
+
       // Google OIDC fields
       String ggEmail = (String) attrs.get("email");
       String ggName = (String) attrs.get("name");
       String ggPicture = (String) attrs.get("picture");
-      
+
+      // Discord fields
+      String dcEmail = (String) attrs.get("email"); // Discord also uses "email"
+      String dcUsername = (String) attrs.get("username");
+      String dcGlobalName = (String) attrs.get("global_name");
+      String dcAvatarHash = (String) attrs.get("avatar");
+      Object dcIdObj = attrs.get("id");
+      String dcId = dcIdObj != null ? String.valueOf(dcIdObj) : null;
+      String dcAvatar = null;
+      if (dcId != null && dcAvatarHash != null && !dcAvatarHash.isEmpty()) {
+        dcAvatar = "https://cdn.discordapp.com/avatars/" + dcId + "/" + dcAvatarHash + ".png";
+      }
+
       // normalized
-      String login = ghLogin != null ? ghLogin : ggEmail;
-      String name = ghName != null ? ghName : ggName;
-      String avatar = ghAvatar != null ? ghAvatar : ggPicture;
-      
+      String login =
+          ghLogin != null ? ghLogin
+          : (ggEmail != null ? ggEmail
+          : (dcEmail != null ? dcEmail
+          : dcUsername));
+
+      String name =
+          ghName != null ? ghName
+          : (ggName != null ? ggName
+          : (dcGlobalName != null ? dcGlobalName : dcUsername));
+
+      String avatar =
+          ghAvatar != null ? ghAvatar
+          : (ggPicture != null ? ggPicture : dcAvatar);
+
+      String email =
+          ggEmail != null ? ggEmail : dcEmail;
+
       out.put("login", login);
       out.put("name", name);
-      out.put("email", ggEmail);
+      out.put("email", email);
       out.put("avatar_url", avatar);
       return out;
     }
@@ -77,11 +103,11 @@ public class MeController {
     Map<String, Object> attrs = oauth2User.getAttributes();
     Map<String, Object> out = new LinkedHashMap<>();
     out.put("authenticated", true);
-    
+
     // Include the user ID - this is what other parts of the app need
     out.put("userId", user.getId());
     out.put("id", user.getId()); // Alias for convenience
-    
+
     // GitHub fields
     String ghLogin = (String) attrs.get("login");
     String ghAvatar = (String) attrs.get("avatar_url");
@@ -92,11 +118,39 @@ public class MeController {
     String ggName = (String) attrs.get("name");
     String ggPicture = (String) attrs.get("picture");
 
+    // Discord fields
+    String dcEmail = (String) attrs.get("email"); // same key name
+    String dcUsername = (String) attrs.get("username");
+    String dcGlobalName = (String) attrs.get("global_name");
+    String dcAvatarHash = (String) attrs.get("avatar");
+    Object dcIdObj = attrs.get("id");
+    String dcId = dcIdObj != null ? String.valueOf(dcIdObj) : null;
+    String dcAvatar = null;
+    if (dcId != null && dcAvatarHash != null && !dcAvatarHash.isEmpty()) {
+      dcAvatar = "https://cdn.discordapp.com/avatars/" + dcId + "/" + dcAvatarHash + ".png";
+    }
+
     // normalized (use database values as primary, fallback to OAuth attributes)
-    String login = ghLogin != null ? ghLogin : (ggEmail != null ? ggEmail : user.getEmail());
-    String name = user.getName() != null ? user.getName() : (ghName != null ? ghName : ggName);
-    String email = user.getEmail() != null ? user.getEmail() : ggEmail;
-    String avatar = user.getAvatarUrl() != null ? user.getAvatarUrl() : (ghAvatar != null ? ghAvatar : ggPicture);
+    String login =
+        ghLogin != null ? ghLogin
+        : (ggEmail != null ? ggEmail
+        : (user.getEmail() != null ? user.getEmail()
+        : (dcEmail != null ? dcEmail : dcUsername)));
+
+    String name =
+        user.getName() != null ? user.getName()
+        : (ghName != null ? ghName
+        : (ggName != null ? ggName
+        : (dcGlobalName != null ? dcGlobalName : dcUsername)));
+
+    String email =
+        user.getEmail() != null ? user.getEmail()
+        : (ggEmail != null ? ggEmail : dcEmail);
+
+    String avatar =
+        user.getAvatarUrl() != null ? user.getAvatarUrl()
+        : (ghAvatar != null ? ghAvatar
+        : (ggPicture != null ? ggPicture : dcAvatar));
 
     out.put("login", login);
     out.put("name", name);
@@ -104,7 +158,7 @@ public class MeController {
     out.put("avatar_url", avatar);
     // Note: oauthProvider is stored in DB but not exposed - it's an implementation detail
     out.put("attributes", attrs);
-    
+
     return out;
   }
 }
