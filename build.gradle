@@ -24,6 +24,9 @@ dependencies {
     // Changed from MySQL to PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'  
 
+    implementation 'org.springframework.boot:spring-boot-starter-webflux' // for WebClient (OpenAI HTTP calls)
+    implementation 'org.apache.pdfbox:pdfbox:2.0.30' 
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
