@@ -17,31 +17,31 @@ public class SopController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<SopResponse> generateSop(
-            @RequestParam("resume") MultipartFile resumeFile,
-            @RequestParam("targetProgram") String targetProgram,
-            @RequestParam("targetUniversity") String targetUniversity,
-            @RequestParam(value = "extraNotes", required = false, defaultValue = "") String extraNotes) {
-        try {
-            String resumeText = pdfResumeService.extractPdfText(resumeFile);
+    public ResponseEntity<SopResponse> generateSop(int lol){System.out.println("SOP generation endpoint hit" + lol);}
+            // @RequestParam("resume") MultipartFile resumeFile,
+            // @RequestParam("targetProgram") String targetProgram,
+            // @RequestParam("targetUniversity") String targetUniversity,
+            // @RequestParam(value = "extraNotes", required = false, defaultValue = "") String extraNotes) {
+        // try {
+        //     String resumeText = pdfResumeService.extractPdfText(resumeFile);
 
-            if (resumeText == null || resumeText.trim().length() < 50) {
-                return ResponseEntity.badRequest()
-                        .body(new SopResponse(
-                                "",
-                                "Resume text could not be extracted. Make sure your PDF has selectable text (not just a scan)."));
-            }
+        //     if (resumeText == null || resumeText.trim().length() < 50) {
+        //         return ResponseEntity.badRequest()
+        //                 .body(new SopResponse(
+        //                         "",
+        //                         "Resume text could not be extracted. Make sure your PDF has selectable text (not just a scan)."));
+        //     }
 
-            String sopDraft = sopService.generateSop(resumeText, targetProgram, targetUniversity, extraNotes);
-            return ResponseEntity.ok(new SopResponse(sopDraft, null));
+        //     String sopDraft = sopService.generateSop(resumeText, targetProgram, targetUniversity, extraNotes);
+        //     return ResponseEntity.ok(new SopResponse(sopDraft, null));
 
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(new SopResponse("", e.getMessage()));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError()
-                    .body(new SopResponse("", "Unexpected server error while generating SOP."));
-        }
+        // } catch (IllegalArgumentException e) {
+        //     return ResponseEntity.badRequest()
+        //             .body(new SopResponse("", e.getMessage()));
+        // } catch (Exception e) {
+        //     e.printStackTrace();
+        //     return ResponseEntity.internalServerError()
+        //             .body(new SopResponse("", "Unexpected server error while generating SOP."));
+        // }
     }
 }
