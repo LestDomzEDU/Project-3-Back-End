@@ -50,19 +50,27 @@ public class OAuthSecurityConfig {
     CorsConfiguration config = new CorsConfiguration();
     // Use origin patterns to support wildcards and mobile app origins
     config.setAllowedOriginPatterns(List.of(
+        // Backend API (this app)
         "https://grad-quest-app-2cac63f2b9b2.herokuapp.com",
-        // for local testing
+
+        // Frontend SPA on Heroku
+        "https://grad-quest-frontend-a783d26f8f23.herokuapp.com",
+
+        // Local testing on your LAN
         "exp://10.11.140.150:8081",
         "http://10.11.140.150:8081",
-        // for android emulator
+
+        // Android emulator
         "http://10.0.2.2:8081",
         "exp://10.0.2.2:8081",
+
+        // Localhost web dev
         "http://localhost:8081",
         "http://127.0.0.1:8081"
     ));
     config.setAllowCredentials(true);
-    config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-    config.setAllowedHeaders(List.of("Authorization","Cache-Control","Content-Type","X-Requested-With"));
+    config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    config.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type", "X-Requested-With"));
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", config);
     return source;
