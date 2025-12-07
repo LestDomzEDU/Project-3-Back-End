@@ -243,15 +243,33 @@ public class ReminderController {
     /**
      * mark a reminder as completed/dismissed
      * 
-     * PATCH /api/reminders/{reminderId}/complete
+     * PATCH /api/reminders/{reminderId}/complete?userId={userId}
      *
      */
     @PatchMapping("/{reminderId}/complete")
-    public String markReminderComplete(@PathVariable Long reminderId) {
-        // TODO: Extract student ID from authentication token
-        // TODO: Verify reminder belongs to student
-        // TODO: Mark reminder as completed in database
-        return "Reminder marked as complete";
+    public ResponseEntity<?> markReminderComplete(@PathVariable Long reminderId,
+                                                  @RequestParam Long userId) {
+        try {
+            User user = userRepo.findById(userId).orElse(null);
+            if (user == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Reminder reminder = reminderRepo.findByIdAndUser(reminderId, user)
+                    .orElse(null);
+            if (reminder == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            reminder.setIsCompleted(true);
+            Reminder updatedReminder = reminderRepo.save(reminder);
+            return ResponseEntity.ok(updatedReminder);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Failed to mark reminder as complete");
+            error.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
     }
 }
 
