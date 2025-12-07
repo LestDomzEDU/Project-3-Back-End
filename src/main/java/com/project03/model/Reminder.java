@@ -1,5 +1,6 @@
 package com.project03.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,13 +16,20 @@ public class Reminder {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "application_id", nullable = false)
+    @JoinColumn(name = "application_id", nullable = true)
+    @JsonIgnore
     private Application application;
 
-    // date for the reminder
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = true)
+    @JsonIgnore
+    private School school;
+
+    // reminder date
     @Column(name = "reminder_date", nullable = false)
     private LocalDate reminderDate; 
 
@@ -29,20 +37,20 @@ public class Reminder {
     @Column(name = "reminder_time")
     private LocalTime reminderTime; 
 
-    // Reminder title
+    // reminder title
     @Column(nullable = false)
     private String title; 
 
-    // Reminder description/details
+    // reminder description/details
     @Column(columnDefinition = "TEXT")
     private String description;
     
-    // Reminder type
+    // reminder type
     @Column(name = "reminder_type", nullable = false)
     @Enumerated(EnumType.STRING)
     private ReminderType reminderType;
 
-    // Whether reminder has been completed/dismissed
+    // whether reminder has been completed/dismissed
     @Column(name = "is_completed", nullable = false)
     private Boolean isCompleted; 
 
@@ -62,6 +70,16 @@ public class Reminder {
                    String title, ReminderType reminderType) {
         this.user = user;
         this.application = application;
+        this.reminderDate = reminderDate;
+        this.title = title;
+        this.reminderType = reminderType;
+        this.isCompleted = false;
+    }
+
+    public Reminder(User user, School school, LocalDate reminderDate, 
+                   String title, ReminderType reminderType) {
+        this.user = user;
+        this.school = school;
         this.reminderDate = reminderDate;
         this.title = title;
         this.reminderType = reminderType;
@@ -101,6 +119,14 @@ public class Reminder {
 
     public void setApplication(Application application) {
         this.application = application;
+    }
+
+    public School getSchool() {
+        return school;
+    }
+
+    public void setSchool(School school) {
+        this.school = school;
     }
 
     public LocalDate getReminderDate() {
