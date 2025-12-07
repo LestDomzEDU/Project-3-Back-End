@@ -241,14 +241,14 @@ public class ReminderController {
     }
 
     /**
-     * mark a reminder as completed/dismissed
+     * toggle a reminder's completed status
      * 
      * PATCH /api/reminders/{reminderId}/complete?userId={userId}
      *
      */
     @PatchMapping("/{reminderId}/complete")
-    public ResponseEntity<?> markReminderComplete(@PathVariable Long reminderId,
-                                                  @RequestParam Long userId) {
+    public ResponseEntity<?> toggleReminderComplete(@PathVariable Long reminderId,
+                                                    @RequestParam Long userId) {
         try {
             User user = userRepo.findById(userId).orElse(null);
             if (user == null) {
@@ -261,12 +261,13 @@ public class ReminderController {
                 return ResponseEntity.notFound().build();
             }
 
-            reminder.setIsCompleted(true);
+            // Toggle the completed status
+            reminder.setIsCompleted(!reminder.getIsCompleted());
             Reminder updatedReminder = reminderRepo.save(reminder);
             return ResponseEntity.ok(updatedReminder);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
-            error.put("error", "Failed to mark reminder as complete");
+            error.put("error", "Failed to toggle reminder completion status");
             error.put("message", e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
