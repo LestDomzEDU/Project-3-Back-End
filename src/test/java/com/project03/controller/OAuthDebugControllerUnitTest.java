@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 
 class OAuthDebugControllerUnitTest {
 
@@ -25,6 +26,8 @@ class OAuthDebugControllerUnitTest {
                 .userInfoUri("https://api.github.com/user")
                 .userNameAttributeName("id")
                 .clientName("GitHub")
+                // ✅ required by newer Spring Security
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
                 .build();
 

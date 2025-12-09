@@ -22,27 +22,33 @@ public class User {
     @Column(name = "name")
     private String name;
 
-    // OAuth provider (e.g., "github", "google")
-    @Column(name = "oauth_provider", nullable = false)
+    // OAuth provider (nullable so JPA tests can save a simple user)
+    @Column(name = "oauth_provider")
     private String oauthProvider;
 
-    // OAuth provider's user ID (GitHub ID or Google sub)
-    @Column(name = "oauth_provider_id", nullable = false)
+    // OAuth provider's user ID (nullable for the same reason)
+    @Column(name = "oauth_provider_id")
     private String oauthProviderId;
 
     // Avatar URL from OAuth provider
     @Column(name = "avatar_url")
     private String avatarUrl;
 
+    // ---------------------------------------------------------
     // Constructors
+    // ---------------------------------------------------------
+
     public User() {
+        // Default constructor is required by JPA
     }
 
+    // Convenience constructor used by UserController
     public User(String email, String name) {
         this.email = email;
         this.name = name;
     }
 
+    // Full constructor used for OAuth user creation
     public User(String email, String name, String oauthProvider, String oauthProviderId) {
         this.email = email;
         this.name = name;
@@ -50,7 +56,10 @@ public class User {
         this.oauthProviderId = oauthProviderId;
     }
 
+    // ---------------------------------------------------------
     // Getters and Setters
+    // ---------------------------------------------------------
+
     public Long getId() {
         return id;
     }

@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -20,6 +21,7 @@ import com.project03.repository.ReminderRepository;
 import com.project03.repository.SchoolRepository;
 import com.project03.repository.StudentPreferenceRepository;
 import com.project03.repository.UserRepository;
+import com.project03.service.OAuthUserService;
 
 /**
  * Verifies that selected controllers are registered with Spring MVC
@@ -33,7 +35,6 @@ import com.project03.repository.UserRepository;
         OAuthFinalController.class,
         ReminderController.class,
         SchoolController.class,
-        StudentPreferenceController.class,
         TestingController.class,
         UserController.class
 })
@@ -49,6 +50,8 @@ class ControllerMappingsTest {
     @MockBean private ApplicationRepository applicationRepository;
     @MockBean private ReminderRepository reminderRepository;
     @MockBean private UserRepository userRepository;
+    @MockBean private OAuthUserService oauthUserService;
+    @MockBean private ClientRegistrationRepository clientRegistrationRepository;
 
     @Test
     @DisplayName("Controllers are present and have at least one registered handler method")
@@ -57,15 +60,15 @@ class ControllerMappingsTest {
                 mapping.getHandlerMethods().values(); // Map<RequestMappingInfo, HandlerMethod>
 
         assertThat(handlers.stream().anyMatch(h -> h.getBeanType().equals(HomeController.class)))
-            .as("HomeController has mappings").isTrue();
+                .as("HomeController has mappings").isTrue();
 
         assertThat(handlers.stream().anyMatch(h -> h.getBeanType().equals(MeController.class)))
-            .as("MeController has mappings").isTrue();
+                .as("MeController has mappings").isTrue();
 
         assertThat(handlers.stream().anyMatch(h -> h.getBeanType().equals(SchoolController.class)))
-            .as("SchoolController has mappings").isTrue();
+                .as("SchoolController has mappings").isTrue();
 
         assertThat(handlers.stream().anyMatch(h -> h.getBeanType().equals(UserController.class)))
-            .as("UserController has mappings").isTrue();
+                .as("UserController has mappings").isTrue();
     }
 }

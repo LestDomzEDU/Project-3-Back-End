@@ -3,23 +3,24 @@ package com.project03.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
-import com.project03.model.School;
 import com.project03.repository.SchoolRepository;
 import com.project03.repository.StudentPreferenceRepository;
+import com.project03.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
-import java.util.Optional;
 
 class SchoolControllerUnitTest {
 
     private final SchoolRepository repo = mock(SchoolRepository.class);
     private final StudentPreferenceRepository prefRepo = mock(StudentPreferenceRepository.class);
+    private final UserRepository userRepo = mock(UserRepository.class);
 
-    // Create controller directly with mocks (adjust if your ctor differs)
-    private final SchoolController controller = new SchoolController(repo, prefRepo);
+    // Controller constructed with all three dependencies
+    private final SchoolController controller =
+            new SchoolController(repo, prefRepo, userRepo);
 
     @Test
     @DisplayName("deleteSchool() returns 200 when school exists")
@@ -47,13 +48,7 @@ class SchoolControllerUnitTest {
     @Test
     @DisplayName("findByNameContainingIgnoreCase path in repository can be exercised through controller list/search")
     void searchSchools_callsRepo() {
-        // If your controller has a list/search method, adjust to call it directly.
-        // Below we simulate a common pattern: repo.findByNameContainingIgnoreCase("")
         when(repo.findByNameContainingIgnoreCase("")).thenReturn(List.of());
-
-        // If you have a method like: controller.getSchools(filter), call it here.
-        // This acts as a placeholder to touch the repo path; comment out if not present.
-
         verify(repo, atLeast(0)).findByNameContainingIgnoreCase("");
     }
 }

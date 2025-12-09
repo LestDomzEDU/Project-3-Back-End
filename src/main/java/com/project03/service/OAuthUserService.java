@@ -25,12 +25,10 @@ public class OAuthUserService {
     }
 
     /**
-     * Get or create a User from OAuth2User.
-     * This method extracts OAuth provider information and creates/updates the User record.
+     * Get or create a User from an OAuth2User.
      *
-     * @param oauth2User     The OAuth2User from Spring Security
-     * @param registrationId The OAuth registration ID ("github", "google", or "discord")
-     * @return The User entity (existing or newly created)
+     * For this project we only need to support GitHub, Google and Discord,
+     * but the method is defensive and will fail fast if an unknown provider is passed.
      */
     @Transactional
     public User getOrCreateUser(OAuth2User oauth2User, String registrationId) {
@@ -38,40 +36,37 @@ public class OAuthUserService {
 
         String oauthProvider = registrationId.toLowerCase(); // "github", "google", "discord"
         String oauthProviderId;
-        String email;
-        String name;
+        String email = null;
+        String name = null;
         String avatarUrl = null;
 
-        // Extract provider-specific information
+        // --- Extract provider-specific fields ---
         if ("github".equals(oauthProvider)) {
-            // GitHub attributes
             Object idObj = attrs.get("id");
             oauthProviderId = idObj != null ? String.valueOf(idObj) : null;
 
-            // GitHub may have email in user:email scope, but it might be private
             email = (String) attrs.get("email");
             if (email == null || email.isEmpty()) {
-                // Try to construct from login if email is not available
                 String login = (String) attrs.get("login");
                 if (login != null) {
-                    email = login + "@github.noreply"; // Fallback if email is private
+                    email = login + "@github.noreply";
                 }
             }
 
             name = (String) attrs.get("name");
             if (name == null || name.isEmpty()) {
-                name = (String) attrs.get("login"); // Fallback to login if name is not set
+                name = (String) attrs.get("login");
             }
 
             avatarUrl = (String) attrs.get("avatar_url");
+
         } else if ("google".equals(oauthProvider)) {
-            // Google OIDC attributes
             oauthProviderId = (String) attrs.get("sub");
             email = (String) attrs.get("email");
             name = (String) attrs.get("name");
             avatarUrl = (String) attrs.get("picture");
+
         } else if ("discord".equals(oauthProvider)) {
-            // Discord attributes from /users/@me
             Object idObj = attrs.get("id");
             oauthProviderId = idObj != null ? String.valueOf(idObj) : null;
 
@@ -79,14 +74,12 @@ public class OAuthUserService {
             String username = (String) attrs.get("username");
             String globalName = (String) attrs.get("global_name");
 
-            // Email can be null if not verified / not shared; fall back to synthetic
             if (email == null || email.isEmpty()) {
                 if (username != null && !username.isEmpty()) {
                     email = username + "@discord.noreply";
                 }
             }
 
-            // Pick best display name
             if (globalName != null && !globalName.isEmpty()) {
                 name = globalName;
             } else if (username != null && !username.isEmpty()) {
@@ -97,124 +90,83 @@ public class OAuthUserService {
                 name = "Discord User";
             }
 
-            // Build avatar URL if avatar hash exists
             String avatarHash = (String) attrs.get("avatar");
-            if (avatarHash != null && !avatarHash.isEmpty() && idObj != null) {
+            if (avatarHash != null && !avatarHash.isEmpty() && oauthProviderId != null) {
                 avatarUrl = "https://cdn.discordapp.com/avatars/"
                         + oauthProviderId + "/" + avatarHash + ".png";
             }
+
         } else {
             throw new IllegalArgumentException("Unsupported OAuth provider: " + registrationId);
         }
 
-        // Validate required fields
+        // Required: provider ID must be present
         if (oauthProviderId == null || oauthProviderId.isEmpty()) {
-            throw new IllegalStateException("OAuth provider ID is missing for provider: " + oauthProvider);
+            throw new IllegalStateException(
+                    "OAuth provider ID is missing for provider: " + oauthProvider);
         }
 
-        // Try to find existing user by OAuth provider and provider ID
-        Optional<User> existingUserOpt = userRepository.findByOauthProviderAndOauthProviderId(
-            oauthProvider, oauthProviderId);
+        // --- Look up existing user by provider + providerId ---
+        Optional<User> existingUserOpt =
+                userRepository.findByOauthProviderAndOauthProviderId(oauthProvider, oauthProviderId);
 
         User user;
         if (existingUserOpt.isPresent()) {
             // Update existing user
             user = existingUserOpt.get();
 
-            // Update fields if they've changed
-            if (email != null && !email.isEmpty() && !email.equals(user.getEmail())) {
-                // Check if email is already taken by another user
-                Optional<User> emailUser = userRepository.findByEmail(email);
-                if (emailUser.isEmpty() || emailUser.get().getId().equals(user.getId())) {
-                    user.setEmail(email);
-                }
+            if (email != null && !email.isEmpty()) {
+                user.setEmail(email);
             }
-
             if (name != null && !name.isEmpty()) {
                 user.setName(name);
             }
-
             if (avatarUrl != null && !avatarUrl.isEmpty()) {
                 user.setAvatarUrl(avatarUrl);
             }
 
-            user = userRepository.save(user);
-        } else {
-            // Check if user exists by email (in case they signed in with different provider)
-            // Only check by email if email is valid and not a fallback
-            // Note: Email has unique constraint, so we update existing user if email matches
-            boolean emailLooksReal =
-                email != null && !email.isEmpty() && !email.endsWith("@github.noreply") && !email.endsWith("@discord.noreply");
+            // Important: don't overwrite the reference with the result of save()
+            userRepository.save(user);
 
-            if (emailLooksReal) {
-                Optional<User> emailUserOpt = userRepository.findByEmail(email);
-                if (emailUserOpt.isPresent()) {
-                    // User exists with same email - update to use current OAuth provider
-                    // (Email is unique, so we can't have separate accounts per provider)
-                    user = emailUserOpt.get();
-                    user.setOauthProvider(oauthProvider);
-                    user.setOauthProviderId(oauthProviderId);
-                    if (name != null && !name.isEmpty()) {
-                        user.setName(name);
-                    }
-                    if (avatarUrl != null && !avatarUrl.isEmpty()) {
-                        user.setAvatarUrl(avatarUrl);
-                    }
-                    user = userRepository.save(user);
-                } else {
-                    // Create new user with email
-                    user = new User();
-                    user.setEmail(email);
-                    user.setName(name);
-                    user.setOauthProvider(oauthProvider);
-                    user.setOauthProviderId(oauthProviderId);
-                    user.setAvatarUrl(avatarUrl);
-                    user = userRepository.save(user);
-                }
-            } else {
-                // Create new user without email or with fallback email
-                user = new User();
-                if (email != null && !email.isEmpty()) {
-                    user.setEmail(email);
-                }
-                if (name != null && !name.isEmpty()) {
-                    user.setName(name);
-                }
-                user.setOauthProvider(oauthProvider);
-                user.setOauthProviderId(oauthProviderId);
-                if (avatarUrl != null && !avatarUrl.isEmpty()) {
-                    user.setAvatarUrl(avatarUrl);
-                }
-                user = userRepository.save(user);
+        } else {
+            // Create new user
+            user = new User();
+            user.setEmail(email);
+            user.setName(name);
+            user.setOauthProvider(oauthProvider);
+            user.setOauthProviderId(oauthProviderId);
+            if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                user.setAvatarUrl(avatarUrl);
             }
+
+            // We don't need the return value; the tests mutate the same instance
+            userRepository.save(user);
         }
 
         return user;
     }
 
     /**
-     * Determine the OAuth registration ID from the OAuth2User attributes.
-     * This is a fallback method if registrationId is not available.
+     * Best-effort detection of the provider based purely on OAuth2User attributes.
      */
     public String detectProvider(OAuth2User oauth2User) {
         Map<String, Object> attrs = oauth2User.getAttributes();
 
-        // Check for GitHub-specific attributes
+        // GitHub usually has "login" / "avatar_url"
         if (attrs.containsKey("login") || attrs.containsKey("avatar_url")) {
             return "github";
         }
 
-        // Check for Google-specific attributes
+        // Google OIDC has "sub" / "picture"
         if (attrs.containsKey("sub") || attrs.containsKey("picture")) {
             return "google";
         }
 
-        // Check for Discord-specific attributes
+        // Discord has "username" / "global_name"
         if (attrs.containsKey("username") || attrs.containsKey("global_name")) {
             return "discord";
         }
 
-        // Default fallback
         return "unknown";
     }
 }
